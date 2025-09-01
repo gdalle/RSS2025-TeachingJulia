@@ -30,7 +30,9 @@ begin
 	import CairoMakie
 	using Colors
 	using DataFrames
+	import Distributions
 	import HiGHS
+	using LinearAlgebra
 	using PlutoMapPicker
 	using PlutoUI
 	using PlutoUI
@@ -39,6 +41,7 @@ begin
 	import Proj
 	using Random
 	using StableRNGs
+	using Test
 	import TravelingSalesmanExact
 	import TravelingSalesmanHeuristics
 
@@ -146,7 +149,7 @@ Compared to Python, Julia has drawbacks for teaching:
 - Underfunded package maintenance
 - Less job market demand
 
-Still, we think it is an excellent teaching tool, and we'll try to explain why.
+Still, I think it is an excellent teaching tool, and I'll give two reasons.
 """
 
 # ╔═╡ 99bdd031-74db-4692-93ed-64fdba2c50e4
@@ -297,15 +300,6 @@ md"""
   - Easy version control
   - Lightweight export
 - PDF, HTML or recording options
-"""
-
-# ╔═╡ 825640bf-90a1-445d-ac4c-0e75eb652813
-md"""
-## Publishing
-"""
-
-# ╔═╡ 5a04b104-5e0b-470e-a61b-0b791d532e50
-md"""
 - Generate a website with [PlutoPages](https://github.com/JuliaPluto/PlutoPages.jl)
 - Enable interactivity with [PlutoSliderServer](https://plutojl.org/en/docs/plutosliderserver/)
 """
@@ -361,7 +355,7 @@ pubs;
 
 # ╔═╡ 92dc2942-feb3-471a-a3bc-008454f3bd8e
 md"""
-!!! info
+!!! info "Task"
 	What do you notice about the nearest neighbor heuristic? When is it good or bad?
 """
 
@@ -459,7 +453,7 @@ end
 
 # ╔═╡ 33a0feed-557c-4a0c-970d-7c098817b674
 md"""
-!!! info
+!!! info "Task"
 	What do you notice about the stationary distribution? What does it seem to depend upon?
 """
 
@@ -573,6 +567,81 @@ md"""
 ## Automatic evaluation
 """
 
+# ╔═╡ 7eabd809-7873-4a70-9465-f670f52e42c4
+md"""
+!!! info "Task"
+	Write a function `multivariate_gaussian_estimator(X)` which takes a matrix `X` whose columns are multivariate Gaussian samples and outputs a tuple `(μ, Σ)` containing the maximum likelihood estimator of the mean and covariance.
+"""
+
+# ╔═╡ b1adab10-5426-4fc3-9c7c-ab51ce723715
+md"""
+You can try out your function on the following data:
+"""
+
+# ╔═╡ 52257e9f-8c5a-4c31-b9b1-fe7aeb7b5761
+begin
+	μ = randn(3)
+	Σ = I + Symmetric(rand(3, 3))
+	X = rand(StableRNG(0), Distributions.MvNormal(μ, Σ), 100_000)
+end
+
+# ╔═╡ d3592d72-e008-4cb8-b47e-a3e35d0b7e3e
+multivariate_gaussian_estimator(X)
+
+# ╔═╡ e23a79ce-9a8e-4fec-abd8-18627cef92df
+let
+	if @isdefined multivariate_gaussian_estimator
+		try
+			result = multivariate_gaussian_estimator(X)
+			if !isa(result, Tuple{Any,Any})
+				keep_working(md"The returned object must be a tuple `(μ, Σ)`")
+			elseif !isa(result[1], Vector{Float64})
+				wrong_type(:μ, AbstractVector{Float64})
+			elseif !isa(result[2], Matrix{Float64})
+				wrong_type(:Σ, AbstractMatrix{Float64})
+			elseif size(result[1]) != size(μ)
+				keep_working("`μ` must be a vector of the same dimension as one sample")
+			elseif size(result[2]) != size(Σ)
+				keep_working("`Σ` must be a square matrix of the same dimension as one sample")
+			elseif !isapprox(result[1], μ; rtol=1e-2)
+				almost(md"`μ` must be equal to the MLE of the mean parameter")
+			elseif !isapprox(result[2], Σ, rtol=1e-2)
+				almost(md"`Σ` must be equal to the MLE of the covariance parameter")
+			else
+				correct()
+			end
+		catch e
+			keep_working("`multivariate_gaussian_estimator(X)` throws a `$(typeof(e))`.")
+		end
+	else
+		func_not_defined(:multivariate_gaussian_estimator)
+	end
+end
+
+# ╔═╡ 87f6b6c2-d537-4e32-b59d-1b60487a2a56
+function multivariate_gaussian_estimator_solution(X)
+	d, n = size(X)
+	μ = 0
+	for j in 1:n
+		μ = μ .+ X[:, j]
+	end
+	μ ./= n
+	Xc = copy(X)
+	for j in 1:n
+		Xc[:, j] .-= μ
+	end
+	Σ = Xc * Xc' ./ n
+	return (μ, Σ)
+end
+
+# ╔═╡ dd7f99df-aee8-403b-b3a8-85ebd43e1ac5
+md"""
+!!! tip "More examples"
+	Homeworks from the MIT courses:
+      - [Pokémon homework](https://mit-c25-fall23.netlify.app/homeworks/hw1-2024)
+      - [Computational thinking homeworks](https://computationalthinking.mit.edu/Fall24/)
+"""
+
 # ╔═╡ fa2e5802-a4f5-4345-b7fb-729939984cd1
 md"""
 # Empowering students with Julia
@@ -583,17 +652,49 @@ md"""
 ## Reading state-of-the-art code
 """
 
-# ╔═╡ 1813a802-fd3b-4cda-bbf0-41d4138f903a
-@edit exp(10)
+# ╔═╡ 73cc2142-3721-42b3-9fd1-590fe1e85ff0
+md"""
+Most packages are Julia all the way down: students can understand what the code does without learning a low-level language.
+"""
+
+# ╔═╡ 5242fa26-f438-4db3-8e7e-04d7e2553046
+@functionloc Distributions.fit_mle(Distributions.MvNormal, X)
+
+# ╔═╡ 1e047f91-6da3-40c1-9b8b-b5a2b2ec60b7
+with_terminal() do
+	@less Distributions.fit_mle(Distributions.MvNormal, X)
+end
 
 # ╔═╡ edc76f1e-cc6b-4d3c-9ba4-d0fd7911d84b
 md"""
 ## Writing state-of-the-art code
 """
 
+# ╔═╡ 2a8745b2-d498-4d17-88ce-c76d5d08959c
+md"""
+Introspection tools let students inspect their code at various compilation stages.
+
+Essential to understand the transition from high-level to machine language.
+"""
+
+# ╔═╡ 677cd681-2d30-4207-80b9-8bfde381d720
+@inferred multivariate_gaussian_estimator(X)
+
+# ╔═╡ 61c9665d-7216-4bf7-a42a-be70da262ff9
+with_terminal() do
+	@code_warntype multivariate_gaussian_estimator(X)
+end
+
 # ╔═╡ 27b337bb-bd1d-440c-9a1e-f0409a068d4d
 md"""
 ## From user to contributor
+"""
+
+# ╔═╡ 85404349-8aef-4d1e-b387-df65fff3179f
+md"""
+Understanding package code blurs the boundary between user and contributor.
+
+If somethig goes wrong, a student can actually fix it. Or propose a new feature. Or develop a new package.
 """
 
 # ╔═╡ b548c18d-7581-46c6-bc97-d1a078827ba1
@@ -603,14 +704,29 @@ md"""
 
 # ╔═╡ 2e6f022b-b1ba-4888-a910-d0ceb8bfebf8
 md"""
-## What about Python?
+## Is it impossible in Python?
 """
 
 # ╔═╡ f5f8dd82-4c12-4b0f-97e5-87a870b5383e
 md"""
-A new framework called [marimo](https://marimo.io/) was recently developed for Python.
+A new notebook framework called [marimo](https://marimo.io/) was recently developed for Python.
 
 It lists Pluto as its [first inspiration](https://docs.marimo.io/?h=pluto#inspiration), but boasts more features due to larger funding.
+
+More generally, everything we can do in Julia, we can do in Python (possibly with more sweat).
+"""
+
+# ╔═╡ 49aef6fd-f8bd-4bfa-946b-7a3bbe5ebddc
+md"""
+## So why choose Julia?
+"""
+
+# ╔═╡ e822c130-3860-4fea-a161-714ae8ef7aca
+md"""
+My personal reasons:
+- The fun and esthetics
+- The community (e.g. Pluto developers)
+- The impact
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -619,7 +735,9 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 Colors = "5ae59095-9a9b-59fe-a467-6f913c188581"
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
 HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PlutoMapPicker = "474136ad-924f-47fa-9297-876420b5dc85"
 PlutoTeachingTools = "661c6b06-c737-4d37-b85c-46df65de6f69"
@@ -627,6 +745,7 @@ PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 Proj = "c94c279d-25a6-4763-9509-64d165bea63e"
 Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
 StableRNGs = "860ef19b-820b-49d6-a774-d7a799459cd3"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 TravelingSalesmanExact = "737fac7d-4440-55ef-927e-002196e95561"
 TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 
@@ -634,6 +753,7 @@ TravelingSalesmanHeuristics = "8c8f4381-2cdd-507c-846c-be2bcff6f45f"
 CairoMakie = "~0.15.6"
 Colors = "~0.13.1"
 DataFrames = "~1.7.1"
+Distributions = "~0.25.120"
 HiGHS = "~1.19.0"
 PlutoMapPicker = "~0.1.0"
 PlutoTeachingTools = "~0.4.5"
@@ -650,7 +770,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.11.6"
 manifest_format = "2.0"
-project_hash = "9b666ae2a438838cf3c86dc16e07f354e647b8c9"
+project_hash = "a29a5d05f185bf3b999a91c118512eb144998e5d"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2515,8 +2635,6 @@ version = "4.1.0+0"
 # ╠═15e896ef-a7a9-48b3-a70c-fb082268f22c
 # ╟─6f29932c-2f67-4eda-bdde-b36eeb79283f
 # ╟─3a1026f9-b8f9-45a5-8e1d-060c1425145e
-# ╟─825640bf-90a1-445d-ac4c-0e75eb652813
-# ╟─5a04b104-5e0b-470e-a61b-0b791d532e50
 # ╟─e4928877-ef7c-4ca3-ab4b-4aa33b4fc16d
 # ╟─63260d3a-db1c-4bc2-9521-bb7feba708c4
 # ╠═9b66cf57-8dcc-4fcc-a04b-1fb017eba605
@@ -2553,13 +2671,28 @@ version = "4.1.0+0"
 # ╠═6bb0844a-394e-4f55-8d10-390eb66590c7
 # ╠═875b7964-c394-44c6-b82e-dea4db91725e
 # ╟─09bd752c-778b-4731-b9cf-6ebeacf77c5c
+# ╟─7eabd809-7873-4a70-9465-f670f52e42c4
+# ╟─b1adab10-5426-4fc3-9c7c-ab51ce723715
+# ╠═52257e9f-8c5a-4c31-b9b1-fe7aeb7b5761
+# ╠═d3592d72-e008-4cb8-b47e-a3e35d0b7e3e
+# ╟─e23a79ce-9a8e-4fec-abd8-18627cef92df
+# ╟─87f6b6c2-d537-4e32-b59d-1b60487a2a56
+# ╟─dd7f99df-aee8-403b-b3a8-85ebd43e1ac5
 # ╟─fa2e5802-a4f5-4345-b7fb-729939984cd1
 # ╟─5a99a668-70ca-44ea-874f-5f7d094c6f16
-# ╠═1813a802-fd3b-4cda-bbf0-41d4138f903a
+# ╟─73cc2142-3721-42b3-9fd1-590fe1e85ff0
+# ╠═5242fa26-f438-4db3-8e7e-04d7e2553046
+# ╠═1e047f91-6da3-40c1-9b8b-b5a2b2ec60b7
 # ╟─edc76f1e-cc6b-4d3c-9ba4-d0fd7911d84b
+# ╟─2a8745b2-d498-4d17-88ce-c76d5d08959c
+# ╠═677cd681-2d30-4207-80b9-8bfde381d720
+# ╠═61c9665d-7216-4bf7-a42a-be70da262ff9
 # ╟─27b337bb-bd1d-440c-9a1e-f0409a068d4d
+# ╟─85404349-8aef-4d1e-b387-df65fff3179f
 # ╟─b548c18d-7581-46c6-bc97-d1a078827ba1
 # ╟─2e6f022b-b1ba-4888-a910-d0ceb8bfebf8
 # ╟─f5f8dd82-4c12-4b0f-97e5-87a870b5383e
+# ╟─49aef6fd-f8bd-4bfa-946b-7a3bbe5ebddc
+# ╟─e822c130-3860-4fea-a161-714ae8ef7aca
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
