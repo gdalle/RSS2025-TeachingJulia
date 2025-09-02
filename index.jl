@@ -400,7 +400,7 @@ function plot_tour(tour, pubs_coords; title="", subtitle="")
 end
 
 # ╔═╡ b6e0dd21-098a-40df-b064-432c8cd782c1
-if !isnothing(pubs) && length(pubs) > 3
+if !isnothing(pubs) && !ismissing(pubs) && length(pubs) > 3
 	trans = Proj.Transformation("WGS84", "EPSG:3857"; always_xy=true);
 
 	pubs_coords = map(Base.Fix2(cartesian_coords, trans), pubs);
